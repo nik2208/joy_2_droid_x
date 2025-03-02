@@ -36,7 +36,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   socket_io_client: ^3.0.2
   shared_preferences:
-  #qr_code_scanner:
+  qr_code_scanner:
+  mobile_scanner:
+  http: ^1.1.0 # Add HTTP package for fallback
 
 dev_dependencies:
   flutter_test:

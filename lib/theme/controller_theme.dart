@@ -16,11 +16,18 @@ class ControllerTheme {
   static const bButton = Color(0xBFD50000); // Rosso con opacità
 
   // Dimensioni e proporzioni
+  static const largeStickSize = Size(160, 160); // Stick principale e ABXY
+  static const smallStickSize = Size(130, 130); // Controlli centrali più grandi
+  static const dpadSize = Size(130, 130); // D-pad uguale allo stick piccolo
+  static const buttonAreaSize = Size(160, 160); // Area ABXY invariata
   static const stickSize = Size(120, 120); // Dimensione base stick analogico
-  static const buttonSize = Size(60, 60); // Dimensione base pulsanti faccia
-  static const dpadSize = Size(150, 150); // Dimensione base d-pad
-  static const bumperSize = Size(192, 48); // Dimensione bumper
-  static const triggerSize = Size(96, 96); // Dimensione trigger
+  static const faceButtonSize = Size(60, 60); // Dimensione base pulsanti faccia
+  static const bumperSize = Size(120, 40); // Bumper più piccoli
+  static const triggerSize = Size(80, 40); // Trigger più piccoli e rettangolari
+
+  // Colori per bumper e trigger
+  static const bumperActiveColor = Color(0xFF1E88E5); // Blu quando premuto
+  static const triggerActiveColor = Color(0xFFE53935); // Rosso quando premuto
 
   // Stili bordi
   static final buttonDecoration = BoxDecoration(
