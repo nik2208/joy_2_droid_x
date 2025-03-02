@@ -1,16 +1,17 @@
 # joy_2_droid_x
 
-A new Flutter project.
+This is a porting of https://github.com/OzymandiasTheGreat/Joy2DroidX-server on Flutter.
 
-## Getting Started
+Use your phone as a virtual gamepad on your PC. Supported modes for gamepad are
+Xbox 360 controller and DualShock 4. Supported platforms for server are Windows
+and Linux.
 
-This project is a starting point for a Flutter application.
 
-A few resources to get you started if this is your first Flutter project:
+### Server
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+Server can be downloaded [here](https://github.com/nik2208/Joy2DroidX-server).
+There you'll also find setup instructions (basically download and run).
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+### Client
+
+Tested on web and android, should be runnin mostly everywhere.
