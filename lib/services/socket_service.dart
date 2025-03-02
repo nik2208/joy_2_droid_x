@@ -229,8 +229,9 @@ class SocketService {
     final double lastY = _lastSentAnalogY[yKey] ?? 0.0;
     
     // Fix the left stick's Y-axis inversion - for left stick we need to negate Y
-    final double adjustedY = (stick == 'left') ? y : -y;
-    
+    //final double adjustedY = (stick == 'left') ? y : -y;
+    final double adjustedY = -y;
+
     // Verifica se i valori sono cambiati abbastanza da essere inviati
     final bool shouldSendX = (x - lastX).abs() > ANALOG_THRESHOLD;
     final bool shouldSendY = (adjustedY - lastY).abs() > ANALOG_THRESHOLD;
