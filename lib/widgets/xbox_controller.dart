@@ -50,6 +50,8 @@ class XboxControllerState extends State<XboxController> {
   io.Socket? socket;
   bool isConnected = false;
   final SocketService _socketService = SocketService();
+
+  
   bool showDebug = false; // Aggiungi questa variabile di stato
   bool showMenu = false; // Aggiungi questa variabile di stato
 
@@ -84,6 +86,7 @@ class XboxControllerState extends State<XboxController> {
   @override
   void initState() {
     super.initState();
+    _socketService.initVibration();
     // Rimuovi la connessione automatica
     // _connectToServer();
     
@@ -188,9 +191,9 @@ class XboxControllerState extends State<XboxController> {
 
   Widget _buildLeftStick() {
     return Positioned(
-      top: MediaQuery.of(context).size.height * 0.50,
-      left: MediaQuery.of(context).size.width * 0.1,
-      child: _buildJoystick('left_stick', 150, Colors.blueGrey.shade700),
+      top: MediaQuery.of(context).size.height * 0.40,
+      left: MediaQuery.of(context).size.width * 0.05,
+      child: _buildJoystick('left_stick', 200, Colors.blueGrey.shade700),
     );
   }
 
@@ -198,9 +201,9 @@ class XboxControllerState extends State<XboxController> {
     // Pulsanti ABXY speculari allo stick sinistro
     return Positioned(
       top: MediaQuery.of(context).size.height *
-          0.50, // Stessa altezza dello stick sinistro
+          0.40, // Stessa altezza dello stick sinistro
       right: MediaQuery.of(context).size.width *
-          0.15, // Speculare allo stick sinistro
+          0.05, // Speculare allo stick sinistro
       child: SizedBox(
         width: ControllerTheme.buttonAreaSize.width,
         height: ControllerTheme.buttonAreaSize.height,
@@ -258,7 +261,7 @@ class XboxControllerState extends State<XboxController> {
     return Positioned(
       bottom: MediaQuery.of(context).size.height * 0.05,
       right: MediaQuery.of(context).size.width * 0.32, // Spostato più a destra
-      child: _buildJoystick('right_stick', 120, Colors.blueGrey.shade700),
+      child: _buildJoystick('right_stick', 140, Colors.blueGrey.shade700),
     );
   }
 

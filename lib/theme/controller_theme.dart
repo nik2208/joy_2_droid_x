@@ -21,12 +21,12 @@ class ControllerTheme {
   static final Color triggerActiveColor = Colors.blue.shade600;
   
   // Sizes
-  static const Size bumperSize = Size(75, 30);
-  static const Size triggerSize = Size(75, 30);
-  static const Size dpadSize = Size(130, 130);
-  static const Size buttonAreaSize = Size(120, 120);
-  static const Size largeStickSize = Size(100, 100);
-  static const Size smallStickSize = Size(85, 85);
+  static const Size bumperSize = Size(120, 50);
+  static const Size triggerSize = Size(120, 50);
+  static const Size dpadSize = Size(140, 140);
+  static const Size buttonAreaSize = Size(200, 200);
+  static const Size largeStickSize = Size(200, 200);
+  static const Size smallStickSize = Size(140, 140);
   
   // Box decorations
   static final BoxDecoration stickDecoration = BoxDecoration(

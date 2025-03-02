@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'dart:developer' as developer;
+import 'package:vibration/vibration.dart';
 
 class SocketService {
   io.Socket? socket;
@@ -15,6 +16,14 @@ class SocketService {
   Timer? _heartbeatTimer;
   int _reconnectAttempts = 0;
   static const int MAX_RECONNECT_ATTEMPTS = 3;
+
+  // Add this method to check if vibration is supported
+  bool _canVibrate = false;
+  
+  // Initialize vibration capability
+  Future<void> initVibration() async {
+    _canVibrate = await Vibration.hasVibrator();
+  }
 
   Future<void> connect(String address) async {
     // Cleanup any existing connection
@@ -192,6 +201,11 @@ class SocketService {
       'value': boolValue,
     };
     
+    // Vibrate on button press (not on release)
+    if (boolValue && _canVibrate) {
+      Vibration.vibrate(duration: 5); // Short vibration (40ms)
+    }
+
     // Add detailed debug output
     print('[OUTGOING] Button Input: ${json.encode(payload)}');
     developer.log('SENDING: Button $mappedButton=${boolValue}', name: 'J2DX');
