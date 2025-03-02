@@ -13,10 +13,13 @@ class SocketService {
   // HTTP fallback
   String? _serverUrl;
   Timer? _heartbeatTimer;
+  int _reconnectAttempts = 0;
+  static const int MAX_RECONNECT_ATTEMPTS = 3;
 
   Future<void> connect(String address) async {
     // Cleanup any existing connection
     disconnect();
+    _reconnectAttempts = 0;
 
     // Store address for fallback
     if (!address.contains('://')) {
@@ -26,54 +29,74 @@ class SocketService {
     }
 
     print('Trying to connect to $_serverUrl...');
+    _connectSocketIO();
+  }
 
+  void _connectSocketIO() {
     try {
-      // First try regular Socket.IO
       socket = io.io(
         _serverUrl!,
-        {
-          'transports': ['polling'],
-          'autoConnect': false,
+        <String, dynamic>{
+          'transports': ['websocket', 'polling'],
+          'autoConnect': true,
           'forceNew': true,
+          'reconnection': true,
+          'reconnectionAttempts': 3,
+          'reconnectionDelay': 1000,
+          'timeout': 10000,
+          'extraHeaders': {'Origin': 'flutter-joy2droidx'},
         },
       );
 
       socket!.onConnect((_) {
         print('Connected to server successfully!');
-        isConnected = true;
-        socket!.emit('intro', {'device': 'Flutter', 'id': 'x360'});
+        isConnected = true; // Set to true on connect
+        _reconnectAttempts = 0;
+        
+        // Request Xbox controller immediately after connection
+        socket!.emit('xbox');
       });
 
       socket!.onConnectError((error) {
         print('Socket.IO connection error: $error');
-        _tryHttpFallback();
+        isConnected = false; // Set to false on error
+        _reconnectAttempts++;
+        
+        if (_reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+          print('Max reconnection attempts reached, trying HTTP fallback');
+          _tryHttpFallback();
+        }
       });
 
       socket!.onDisconnect((_) {
         print('Disconnected from server');
-        isConnected = false;
+        isConnected = false; // Set to false on disconnect
       });
 
-      socket!.connect();
-
-      // If not connected after 3 seconds, try HTTP fallback
-      Future.delayed(Duration(seconds: 3), () {
-        if (!isConnected) {
+      // If not connected after 5 seconds, try HTTP fallback
+      Future.delayed(Duration(seconds: 5), () {
+        if (!socket!.connected) {
           print('Socket.IO connection timeout, trying HTTP fallback');
+          isConnected = false; // Make sure flag is updated
           _tryHttpFallback();
         }
       });
     } catch (e) {
       print('Exception during socket setup: $e');
+      isConnected = false; // Set to false on exception
       _tryHttpFallback();
     }
   }
 
   void _tryHttpFallback() {
     // Clean up socket if it exists
-    socket?.disconnect();
-    socket?.dispose();
-    socket = null;
+    if (socket != null) {
+      if (socket!.connected) {
+        socket!.disconnect();
+      }
+      socket!.dispose();
+      socket = null;
+    }
 
     // Try to connect via HTTP
     _httpConnect();
@@ -88,12 +111,11 @@ class SocketService {
         print('HTTP fallback connection successful');
         isConnected = true;
 
+        // Request controller creation
+        await _httpSendMessage('xbox', {});
+
         // Start heartbeat
         _startHeartbeat();
-
-        // Send intro
-        _httpSendMessage(
-            'intro', {'device': 'Flutter Controller', 'id': 'x360'});
       } else {
         print('HTTP fallback failed with status: ${response.statusCode}');
         isConnected = false;
@@ -138,12 +160,14 @@ class SocketService {
   }
 
   bool isSocketConnected() {
-    return isConnected;
+    // Check both our flag and the actual socket connection
+    return isConnected && (socket?.connected ?? false);
   }
 
   void sendButtonInput(String button, int value) {
     if (!isConnected) return;
 
+    // Fix button mappings for menu, back, and trigger buttons
     final String mappedButton = switch (button.replaceAll('_button', '')) {
       'a' => 'a-button',
       'b' => 'b-button',
@@ -151,34 +175,42 @@ class SocketService {
       'y' => 'y-button',
       'left_bumper' => 'left-bumper',
       'right_bumper' => 'right-bumper',
-      'left_trigger' => 'left-trigger',
-      'right_trigger' => 'right-trigger',
-      'back' => 'back-button',
-      'start' => 'start-button',
-      'up' => 'up-button',
-      'down' => 'down-button',
-      'left' => 'left-button',
-      'right' => 'right-button',
+      'left_trigger' => 'zl-button',        // Fixed: now maps to ZL (minus button)
+      'right_trigger' => 'zr-button',       // Fixed: now maps to ZR (plus button)
+      'back' => 'select-button',            // Fixed: now maps to select (back) button
+      'start' => 'start-button',            // Fixed: now maps to start (menu) button
+      'up' => 'dpad-up',                    // Fixed: use dpad- prefix for D-pad
+      'down' => 'dpad-down',                // Fixed: use dpad- prefix for D-pad
+      'left' => 'dpad-left',                // Fixed: use dpad- prefix for D-pad
+      'right' => 'dpad-right',              // Fixed: use dpad- prefix for D-pad
       _ => button,
     };
 
+    final boolValue = value == 1;
+    final payload = {
+      'key': mappedButton,
+      'value': boolValue,
+    };
+    
+    // Add detailed debug output
+    print('[OUTGOING] Button Input: ${json.encode(payload)}');
+    developer.log('SENDING: Button $mappedButton=${boolValue}', name: 'J2DX');
+
     try {
       if (socket != null && socket!.connected) {
-        socket?.emit('input', {
-          'key': mappedButton,
-          'value': value == 1,
-        });
+        socket?.emit('input', payload);
       } else {
-        _httpSendMessage('input', {
-          'key': mappedButton,
-          'value': value == 1,
-        });
+        _httpSendMessage('input', payload);
       }
-      developer.log('Button sent: $mappedButton=${value == 1}');
     } catch (e) {
       print('Error sending button input: $e');
     }
   }
+
+  // Variabili per ottimizzare gli invii analogici
+  final Map<String, double> _lastSentAnalogX = {};
+  final Map<String, double> _lastSentAnalogY = {};
+  static const double ANALOG_THRESHOLD = 0.02; // Soglia minima di cambiamento per inviare un nuovo valore
 
   void sendAnalogInput(String stick, double x, double y) {
     if (!isConnected) return;
@@ -188,18 +220,55 @@ class SocketService {
       'right' => 'right-stick',
       _ => stick,
     };
-
+    
+    // Ottimizzazione: invia solo se il valore è cambiato significativamente
+    final String xKey = '$mappedStick-X';
+    final String yKey = '$mappedStick-Y';
+    
+    final double lastX = _lastSentAnalogX[xKey] ?? 0.0;
+    final double lastY = _lastSentAnalogY[yKey] ?? 0.0;
+    
+    // Fix the left stick's Y-axis inversion - for left stick we need to negate Y
+    final double adjustedY = (stick == 'left') ? y : -y;
+    
+    // Verifica se i valori sono cambiati abbastanza da essere inviati
+    final bool shouldSendX = (x - lastX).abs() > ANALOG_THRESHOLD;
+    final bool shouldSendY = (adjustedY - lastY).abs() > ANALOG_THRESHOLD;
+    
+    if (shouldSendX || shouldSendY) {
+      // Aggiorna i valori memorizzati
+      if (shouldSendX) {
+        _lastSentAnalogX[xKey] = x;
+        final payloadX = {'key': xKey, 'value': x};
+        
+        print('[OUTGOING] Analog Input X: ${json.encode(payloadX)}');
+        developer.log('SENDING: $mappedStick X=$x', name: 'J2DX');
+        
+        _sendInputPayload(payloadX);
+      }
+      
+      if (shouldSendY) {
+        _lastSentAnalogY[yKey] = adjustedY;
+        final payloadY = {'key': yKey, 'value': adjustedY};
+        
+        print('[OUTGOING] Analog Input Y: ${json.encode(payloadY)}');
+        developer.log('SENDING: $mappedStick Y=$adjustedY', name: 'J2DX');
+        
+        _sendInputPayload(payloadY);
+      }
+    }
+  }
+  
+  // Helper per evitare duplicazione codice
+  void _sendInputPayload(Map<String, dynamic> payload) {
     try {
       if (socket != null && socket!.connected) {
-        socket?.emit('input', {'key': '$mappedStick-X', 'value': x});
-        socket?.emit('input', {'key': '$mappedStick-Y', 'value': -y});
+        socket?.emit('input', payload);
       } else {
-        _httpSendMessage('input', {'key': '$mappedStick-X', 'value': x});
-        _httpSendMessage('input', {'key': '$mappedStick-Y', 'value': -y});
+        _httpSendMessage('input', payload);
       }
-      developer.log('Analog sent: $mappedStick X=$x Y=${-y}');
     } catch (e) {
-      print('Error sending analog input: $e');
+      print('Error sending input: $e');
     }
   }
 

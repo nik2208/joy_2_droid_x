@@ -1,86 +1,85 @@
 import 'package:flutter/material.dart';
 
 class ControllerTheme {
-  // Colori principali
-  static const mainButtonNormal = Color(0xFF33691E);
-  static const mainButtonActive = Color(0xFF76FF03);
-  static const stickButton = Color(0xFF212121);
-  static const stickBackground = Color(0xFF4E342E);
-  static const stickBorder = Color(0xFF3E2723);
-  static const buttonColor = Color(0xFF757575);
-
-  // Colori pulsanti faccia
-  static const yButton = Color(0xBFFFEA00); // Giallo con opacità
-  static const xButton = Color(0xBF1565C0); // Blu con opacità
-  static const aButton = Color(0xBF64DD17); // Verde con opacità
-  static const bButton = Color(0xBFD50000); // Rosso con opacità
-
-  // Dimensioni e proporzioni
-  static const largeStickSize = Size(160, 160); // Stick principale e ABXY
-  static const smallStickSize = Size(130, 130); // Controlli centrali più grandi
-  static const dpadSize = Size(130, 130); // D-pad uguale allo stick piccolo
-  static const buttonAreaSize = Size(160, 160); // Area ABXY invariata
-  static const stickSize = Size(120, 120); // Dimensione base stick analogico
-  static const faceButtonSize = Size(60, 60); // Dimensione base pulsanti faccia
-  static const bumperSize = Size(120, 40); // Bumper più piccoli
-  static const triggerSize = Size(80, 40); // Trigger più piccoli e rettangolari
-
-  // Colori per bumper e trigger
-  static const bumperActiveColor = Color(0xFF1E88E5); // Blu quando premuto
-  static const triggerActiveColor = Color(0xFFE53935); // Rosso quando premuto
-
-  // Stili bordi
-  static final buttonDecoration = BoxDecoration(
-    color: stickButton,
-    borderRadius: BorderRadius.circular(100),
-    border: Border.all(
-      color: stickBorder,
-      width: 3,
-    ),
-  );
-
-  static final stickDecoration = BoxDecoration(
+  // Colors for buttons
+  static const Color aButton = Color(0xFF2ECC71);
+  static const Color bButton = Color(0xFFE74C3C);
+  static const Color xButton = Color(0xFF3498DB);
+  static const Color yButton = Color(0xFFF1C40F);
+  
+  // Main Xbox button colors
+  static const Color mainButtonActive = Color(0xFF2ECC71);
+  static const Color mainButtonNormal = Color(0xFFAAAAAA);
+  
+  // Base colors
+  static final Color buttonColor = Colors.grey.shade300;
+  static final Color stickBackground = Colors.grey.shade800;
+  static final Color stickButton = Colors.grey.shade300;
+  
+  // Active colors
+  static final Color bumperActiveColor = Colors.blue.shade300;
+  static final Color triggerActiveColor = Colors.blue.shade600;
+  
+  // Sizes
+  static const Size bumperSize = Size(75, 30);
+  static const Size triggerSize = Size(75, 30);
+  static const Size dpadSize = Size(130, 130);
+  static const Size buttonAreaSize = Size(120, 120);
+  static const Size largeStickSize = Size(100, 100);
+  static const Size smallStickSize = Size(85, 85);
+  
+  // Box decorations
+  static final BoxDecoration stickDecoration = BoxDecoration(
     color: stickBackground,
-    borderRadius: BorderRadius.circular(75),
-    border: Border.all(
-      color: stickBorder,
-      width: 3,
-    ),
+    shape: BoxShape.circle,
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.3),
+        blurRadius: 8,
+        spreadRadius: 1,
+        offset: const Offset(0, 2),
+      ),
+    ],
   );
-
-  static final dpadDecoration = BoxDecoration(
-    color: stickBackground,
-    borderRadius: BorderRadius.circular(75),
-    border: Border.all(
-      color: stickBorder,
-      width: 3,
-    ),
+  
+  static final BoxDecoration dpadDecoration = BoxDecoration(
+    color: buttonColor.withOpacity(0.8),
+    borderRadius: BorderRadius.circular(50),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.2),
+        blurRadius: 5,
+        spreadRadius: 1,
+      ),
+    ],
   );
-
-  // Stili pulsanti faccia
+  
+  // Text styles
+  static const TextStyle buttonTextStyle = TextStyle(
+    color: Colors.white,
+    fontWeight: FontWeight.bold,
+    fontSize: 18,
+  );
+  
+  static const TextStyle bumperTextStyle = TextStyle(
+    fontWeight: FontWeight.bold,
+    fontSize: 14,
+  );
+  
+  // Helper method for face button decoration
   static BoxDecoration getFaceButtonDecoration(Color color) {
     return BoxDecoration(
       color: color,
-      borderRadius: BorderRadius.circular(100),
-      border: Border.all(
-        color: stickBorder,
-        width: 2,
-      ),
+      shape: BoxShape.circle,
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.2),
+          blurRadius: 5,
+          spreadRadius: 1,
+        ),
+      ],
     );
   }
-
-  // Stili testo
-  static const buttonTextStyle = TextStyle(
-    color: buttonColor,
-    fontSize: 24,
-    fontWeight: FontWeight.w500,
-  );
-
-  static const bumperTextStyle = TextStyle(
-    color: buttonColor,
-    fontSize: 18,
-    fontWeight: FontWeight.normal,
-  );
 }
 
 // Dimensioni relative per il layout responsivo

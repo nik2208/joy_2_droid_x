@@ -1,10 +1,12 @@
 import 'dart:math';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_joystick/flutter_joystick.dart';
 import 'package:joy_2_droid_x/services/socket_service.dart';
 import 'package:joy_2_droid_x/widgets/debug_overlay.dart';
-import 'package:joy_2_droid_x/widgets/qr_scanner.dart';
-import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:joy_2_droid_x/widgets/qr_scanner.dart'; // Verifica che questo sia aggiornato
+import 'package:socket_io_client/socket_io_client.dart' as io;
 import '../theme/controller_theme.dart';
 import 'dart:developer' as developer;
 
@@ -45,7 +47,7 @@ class XboxController extends StatefulWidget {
 }
 
 class XboxControllerState extends State<XboxController> {
-  IO.Socket? socket;
+  io.Socket? socket;
   bool isConnected = false;
   final SocketService _socketService = SocketService();
   bool showDebug = false; // Aggiungi questa variabile di stato
@@ -76,19 +78,50 @@ class XboxControllerState extends State<XboxController> {
     'right_trigger': 0.0,
   };
 
+  // Add connection monitoring timer
+  Timer? _connectionMonitor;
+
   @override
   void initState() {
     super.initState();
     // Rimuovi la connessione automatica
     // _connectToServer();
+    
+    // Start connection monitoring
+    _startConnectionMonitoring();
+  }
+
+  // Add this method to monitor connection state
+  void _startConnectionMonitoring() {
+    _connectionMonitor?.cancel();
+    _connectionMonitor = Timer.periodic(Duration(seconds: 1), (timer) {
+      final newConnectionState = _socketService.isSocketConnected();
+      if (isConnected != newConnectionState) {
+        setState(() {
+          isConnected = newConnectionState;
+          print('Connection state change detected: $isConnected');
+        });
+      }
+    });
   }
 
   void _connectToServer() async {
-    print('Initializing connection...');
+    print('Initializing connection to $serverAddress...');
     try {
       await _socketService.connect(serverAddress);
+      
+      // Important: Force state update after connection attempt
       setState(() {
         isConnected = _socketService.isSocketConnected();
+        print('Connection status after connect attempt: $isConnected');
+      });
+      
+      // Double-check after a short delay to ensure UI reflects the correct state
+      Future.delayed(Duration(milliseconds: 500), () {
+        setState(() {
+          isConnected = _socketService.isSocketConnected();
+          print('Connection status verification: $isConnected');
+        });
       });
     } catch (e) {
       print('Connection error: $e');
@@ -126,7 +159,7 @@ class XboxControllerState extends State<XboxController> {
 
   Widget _buildMainButton() {
     return Positioned(
-      top: MediaQuery.of(context).size.height * 0.15,
+      top: MediaQuery.of(context).size.height * 0.20,
       left: (MediaQuery.of(context).size.width - 48) / 2,
       child: Container(
         width: 54,
@@ -154,11 +187,10 @@ class XboxControllerState extends State<XboxController> {
   }
 
   Widget _buildLeftStick() {
-    // Stick sinistro rimane dov'è (è già posizionato bene)
     return Positioned(
-      top: MediaQuery.of(context).size.height * 0.45,
+      top: MediaQuery.of(context).size.height * 0.50,
       left: MediaQuery.of(context).size.width * 0.1,
-      child: _buildAnalogStick('left_stick', true),
+      child: _buildJoystick('left_stick', 150, Colors.blueGrey.shade700),
     );
   }
 
@@ -166,9 +198,9 @@ class XboxControllerState extends State<XboxController> {
     // Pulsanti ABXY speculari allo stick sinistro
     return Positioned(
       top: MediaQuery.of(context).size.height *
-          0.45, // Stessa altezza dello stick sinistro
+          0.50, // Stessa altezza dello stick sinistro
       right: MediaQuery.of(context).size.width *
-          0.1, // Speculare allo stick sinistro
+          0.15, // Speculare allo stick sinistro
       child: SizedBox(
         width: ControllerTheme.buttonAreaSize.width,
         height: ControllerTheme.buttonAreaSize.height,
@@ -177,13 +209,13 @@ class XboxControllerState extends State<XboxController> {
           physics: NeverScrollableScrollPhysics(), // Prevent scrolling
           children: [
             Container(),
-            _buildFaceButton('y_button', 'Y', ControllerTheme.yButton),
+            _buildFaceButton('y_button', 'X', ControllerTheme.yButton),
             Container(),
-            _buildFaceButton('x_button', 'X', ControllerTheme.xButton),
+            _buildFaceButton('x_button', 'Y', ControllerTheme.xButton),
             Container(),
-            _buildFaceButton('b_button', 'B', ControllerTheme.bButton),
+            _buildFaceButton('b_button', 'A', ControllerTheme.bButton),
             Container(),
-            _buildFaceButton('a_button', 'A', ControllerTheme.aButton),
+            _buildFaceButton('a_button', 'B', ControllerTheme.aButton),
             Container(),
           ],
         ),
@@ -226,7 +258,7 @@ class XboxControllerState extends State<XboxController> {
     return Positioned(
       bottom: MediaQuery.of(context).size.height * 0.05,
       right: MediaQuery.of(context).size.width * 0.32, // Spostato più a destra
-      child: _buildAnalogStick('right_stick', false),
+      child: _buildJoystick('right_stick', 120, Colors.blueGrey.shade700),
     );
   }
 
@@ -235,6 +267,7 @@ class XboxControllerState extends State<XboxController> {
       bottom: MediaQuery.of(context).size.height * 0.05,
       left: MediaQuery.of(context).size.width * 0.32, // Spostato più a sinistra
       child: Container(
+        padding: const EdgeInsets.all(8),
         width: ControllerTheme.dpadSize.width,
         height: ControllerTheme.dpadSize.height,
         decoration: ControllerTheme.dpadDecoration,
@@ -392,78 +425,99 @@ class XboxControllerState extends State<XboxController> {
     );
   }
 
-  void _updateStickPosition(String stickId, Offset localPosition, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    double dx = (localPosition.dx - center.dx);
-    double dy = (localPosition.dy - center.dy);
-
-    final radius = size.width / 2;
-    dx = dx / radius;
-    dy = dy / radius;
-
-    final double distance = sqrt(dx * dx + dy * dy);
-
-    if (distance < 0.2) {
-      // Deadzone
-      dx = dy = 0;
-    } else if (distance > 1.0) {
-      // Preserva i valori massimi agli angoli invece di normalizzare
-      dx = dx.sign * min(dx.abs(), 1.0);
-      dy = dy.sign * min(dy.abs(), 1.0);
-    }
-
-    setState(() {
-      String stick = stickId.split('_')[0];
-      analogInputs['${stick}_stick_x'] = dx;
-      analogInputs['${stick}_stick_y'] = dy;
-    });
-
-    if (isConnected) {
-      String stick = stickId.split('_')[0];
-      _socketService.sendAnalogInput(stick, dx, dy);
-    }
-  }
-
-  Widget _buildAnalogStick(String stickId, bool isLarge) {
-    final size = isLarge
-        ? ControllerTheme.largeStickSize
-        : ControllerTheme.smallStickSize;
-    final innerSize = size.width * 0.3;
-
-    return Container(
-      width: size.width,
-      height: size.height,
-      decoration: ControllerTheme.stickDecoration,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onPanStart: (details) =>
-            _updateStickPosition(stickId, details.localPosition, size),
-        onPanUpdate: (details) =>
-            _updateStickPosition(stickId, details.localPosition, size),
-        onPanEnd: (_) {
-          _updateStickPosition(
-              stickId, Offset(size.width / 2, size.height / 2), size);
-        },
-        onPanCancel: () {
-          _updateStickPosition(
-              stickId, Offset(size.width / 2, size.height / 2), size);
-        },
-        child: CustomPaint(
-          painter: StickPainter(
-            x: analogInputs['${stickId}_x'] ?? 0,
-            y: analogInputs['${stickId}_y'] ?? 0,
-            innerSize: innerSize,
+  Widget _buildJoystick(String stickId, double size, Color color) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Joystick(
+        mode: JoystickMode.all,
+        base: JoystickBase(
+          size: size,
+          decoration: JoystickBaseDecoration(
+            color: color.withOpacity(0.5),
+            //borderColor: Colors.black26,
+            //borderWidth: 2,
+            drawOuterCircle: true,
+            drawArrows: false,
           ),
-          size: Size(size.width, size.height),
         ),
+        stick: JoystickStick(
+          size: size * 0.4,
+          decoration: JoystickStickDecoration(
+            color: ControllerTheme.stickButton,
+            //borderColor: Colors.black26,
+            //borderWidth: 1.5,
+          ),
+        ),
+        //stickOffsetCalculator: const AlignCalc(),
+        listener: (details) {
+          // Convert joystick values to our format (-1 to 1)
+          // The joystick package gives values from -1 to 1 directly
+          double dx = details.x;
+          double dy = details.y;
+          
+          // Apply deadzone
+          final double distance = sqrt(dx * dx + dy * dy);
+          if (distance < 0.15) {
+            dx = dy = 0;
+          }
+          
+          // Update state for visualization
+          setState(() {
+            final String stick = stickId.split('_')[0];
+            analogInputs['${stick}_stick_x'] = dx;
+            analogInputs['${stick}_stick_y'] = dy;
+          });
+          
+          // Only send non-zero values to reduce traffic
+          if (isConnected) {
+            final String stick = stickId.split('_')[0];
+            if (dx != 0 || dy != 0) {
+              _socketService.sendAnalogInput(stick, dx, dy);
+            } else {
+              // Invia una volta lo zero per resettare la posizione
+              _socketService.sendAnalogInput(stick, 0, 0);
+            }
+          }
+        },
       ),
     );
   }
 
   void _sendInput(String key, dynamic value) {
-    if (!isConnected) return; // Non inviare input se non connesso
+    if (!isConnected) {
+      // Show visual feedback for failed input when disconnected
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Not connected to server'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 1),
+        ),
+      );
+      return;
+    }
 
     developer.log('Button press: $key = $value');
+    
+    // Add visual feedback that input was sent
+    if (showDebug) {
+      // If debug mode is on, show input info on the screen temporarily
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Input sent: $key = $value'),
+          backgroundColor: Colors.green.withOpacity(0.7),
+          duration: Duration(milliseconds: 300),
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.only(
+            bottom: MediaQuery.of(context).size.height * 0.8,
+            left: MediaQuery.of(context).size.width * 0.25,
+            right: MediaQuery.of(context).size.width * 0.25,
+          ),
+        ),
+      );
+    }
+    
     if (key.contains('stick')) {
       return;
     } else {
@@ -472,132 +526,208 @@ class XboxControllerState extends State<XboxController> {
   }
 
   Widget _buildMenuOverlay() {
-    return Positioned(
-      top: MediaQuery.of(context).size.height * 0.2,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: SingleChildScrollView(
-          child: Container(
-            margin: EdgeInsets.symmetric(horizontal: 20),
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.black.withAlpha(229),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white24),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+  // Directly check connection status from service when building menu
+  final bool currentConnectionStatus = _socketService.isSocketConnected();
+  
+  // If there's a mismatch, update our state
+  if (isConnected != currentConnectionStatus) {
+    Future.microtask(() => setState(() {
+      isConnected = currentConnectionStatus;
+      print('Connection state corrected: $isConnected');
+    }));
+  }
+  
+  return Positioned(
+    top: MediaQuery.of(context).size.height * 0.25,
+    left: 0,
+    right: 0,
+    child: Center(
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.8, // More compact width
+        margin: EdgeInsets.symmetric(horizontal: 20),
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.black.withAlpha(229),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header with title and close button
+            Stack(
               children: [
-                Text(
-                  'Controller Menu',
-                  style: TextStyle(color: Colors.white, fontSize: 20),
-                  textAlign: TextAlign.center,
+                Center(
+                  child: Text(
+                    'Controller Menu',
+                    style: TextStyle(color: Colors.white, fontSize: 20),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
-                SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Colonna sinistra - Switches
-                    Expanded(
-                      flex: 1,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SwitchListTile(
-                            title: Text('Connection',
-                                style: TextStyle(color: Colors.white)),
-                            value: connectionEnabled,
-                            onChanged: (enabled) {
-                              setState(() => connectionEnabled = enabled);
-                              if (enabled) {
-                                _connectToServer();
-                              } else {
-                                _socketService.disconnect();
-                                setState(() => isConnected = false);
-                              }
-                            },
-                          ),
-                          SwitchListTile(
-                            title: Text('Debug',
-                                style: TextStyle(color: Colors.white)),
-                            value: showDebug,
-                            onChanged: (bool value) =>
-                                setState(() => showDebug = value),
-                          ),
-                        ],
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: InkWell(
+                    onTap: () => setState(() => showMenu = false),
+                    child: Container(
+                      padding: EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white12,
+                      ),
+                      child: Icon(
+                        Icons.close,
+                        color: Colors.white70,
+                        size: 18,
                       ),
                     ),
-                    // Colonna destra - Parametri
-                    if (connectionEnabled)
-                      Expanded(
-                        flex: 2,
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Server Status:',
-                                  style: TextStyle(
-                                      color: Colors.white70, fontSize: 12)),
-                              Text(
-                                isConnected ? 'Connected' : 'Disconnected',
-                                style: TextStyle(
-                                  color: isConnected
-                                      ? Colors.green[300]
-                                      : Colors.red[300],
-                                ),
-                              ),
-                              SizedBox(height: 8),
-                              Text('Server Address:',
-                                  style: TextStyle(
-                                      color: Colors.white70, fontSize: 12)),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: TextFormField(
-                                      initialValue: serverAddress,
-                                      style: TextStyle(color: Colors.white),
-                                      decoration: InputDecoration(
-                                        isDense: true,
-                                        border: OutlineInputBorder(),
-                                        contentPadding: EdgeInsets.symmetric(
-                                            horizontal: 8, vertical: 8),
-                                      ),
-                                      onChanged: (value) =>
-                                          setState(() => serverAddress = value),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: Icon(Icons.qr_code_scanner,
-                                        color: Colors.white),
-                                    onPressed: _scanQRCode,
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 8),
-                              ElevatedButton(
-                                onPressed: _connectToServer,
-                                child: Text('Reconnect'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                SizedBox(height: 16),
-                TextButton(
-                  child: Text('Close'),
-                  onPressed: () => setState(() => showMenu = false),
+                  ),
                 ),
               ],
             ),
-          ),
+            Divider(color: Colors.white24, height: 24),
+            
+            // Switches
+            SwitchListTile(
+              title: Text('Connection',
+                  style: TextStyle(color: Colors.white)),
+              value: connectionEnabled,
+              dense: true,
+              onChanged: (enabled) {
+                setState(() => connectionEnabled = enabled);
+                if (enabled) {
+                  _connectToServer();
+                } else {
+                  _socketService.disconnect();
+                  setState(() => isConnected = false);
+                }
+              },
+            ),
+            SwitchListTile(
+              title: Text('Debug',
+                  style: TextStyle(color: Colors.white)),
+              value: showDebug,
+              dense: true,
+              onChanged: (bool value) =>
+                  setState(() => showDebug = value),
+            ),
+            
+            SizedBox(height: 8),
+            
+            // Status and Actions Row
+            if (connectionEnabled)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Status indicator and action buttons
+                    Row(
+                      children: [
+                        // Status indicator
+                        Row(
+                          children: [
+                            Icon(
+                              isConnected ? Icons.check_circle : Icons.error,
+                              color: isConnected ? Colors.green[300] : Colors.red[300],
+                              size: 16,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              isConnected ? 'Connected' : 'Disconnected',
+                              style: TextStyle(
+                                color: isConnected ? Colors.green[300] : Colors.red[300],
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                        
+                        Spacer(),
+                        
+                        // Action buttons in the same row
+                        ElevatedButton(
+                          onPressed: _connectToServer,
+                          style: ElevatedButton.styleFrom(
+                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            minimumSize: Size(10, 10),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: Text('Reconnect', style: TextStyle(fontSize: 12)),
+                        ),
+                        
+                        SizedBox(width: 4),
+                        
+                        if (isConnected)
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              // Send a test button press
+                              _socketService.sendButtonInput('a', 1);
+                              Future.delayed(Duration(milliseconds: 200), () {
+                                _socketService.sendButtonInput('a', 0);
+                              });
+                              
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Test input sent!'),
+                                  backgroundColor: Colors.green,
+                                  duration: Duration(seconds: 1),
+                                ),
+                              );
+                            },
+                            icon: Icon(Icons.gamepad, size: 14),
+                            label: Text('Test', style: TextStyle(fontSize: 12)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              minimumSize: Size(10, 10),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ),
+                      ],
+                    ),
+                    
+                    SizedBox(height: 12),
+                    
+                    // Server Address
+                    Text('Server Address:',
+                        style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            initialValue: serverAddress,
+                            style: TextStyle(color: Colors.white),
+                            decoration: InputDecoration(
+                              isDense: true,
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 8),
+                            ),
+                            onChanged: (value) =>
+                                setState(() => serverAddress = value),
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.qr_code_scanner,
+                              color: Colors.white),
+                          onPressed: _scanQRCode,
+                          padding: EdgeInsets.all(8),
+                          constraints: BoxConstraints(),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   void _showMenu() {
     setState(() => showMenu = !showMenu);
@@ -641,19 +771,22 @@ class XboxControllerState extends State<XboxController> {
   }
 
   Widget _buildCenterButton(String id, String label) {
-    final bool isPressed = buttons['${id}_button'] ?? false;
+    // Fix '_button' suffix handling to match the expected format
+    final buttonId = '${id}_button';
+    final bool isPressed = buttons[buttonId] ?? false;
+    
     return GestureDetector(
       onTapDown: (_) {
-        setState(() => buttons['${id}_button'] = true);
-        _sendInput('${id}_button', 1);
+        setState(() => buttons[buttonId] = true);
+        _sendInput(buttonId, 1); 
       },
       onTapUp: (_) {
-        setState(() => buttons['${id}_button'] = false);
-        _sendInput('${id}_button', 0);
+        setState(() => buttons[buttonId] = false);
+        _sendInput(buttonId, 0);
       },
       onTapCancel: () {
-        setState(() => buttons['${id}_button'] = false);
-        _sendInput('${id}_button', 0);
+        setState(() => buttons[buttonId] = false);
+        _sendInput(buttonId, 0);
       },
       child: Container(
         width: 60,
@@ -680,6 +813,7 @@ class XboxControllerState extends State<XboxController> {
   void dispose() {
     socket?.disconnect();
     socket?.dispose();
+    _connectionMonitor?.cancel();
     super.dispose();
   }
 }
